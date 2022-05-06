@@ -1,0 +1,176 @@
+"""
+By: Audrey Warrene
+Date: 05/06/2022
+Purpose: The purpose of this program is to receive a file with bank history of one/multiple accounts.
+The program must determine based on the given transactions of the account(s) if fraud has been reported,
+if the account holder has good history, unconfirmed history, or no history (meaning this is their first transaction)
+"""
+
+from datetime import datetime
+
+class account:
+    def __init__(self, date, account_id, event_type):
+        """
+        :param date: the date of the given transaction
+        :param account_id: the accounts id
+        :param event_type: "PURCHASE" or "FRAUD_REPORT"
+        """
+        self.date = date
+        self.account_id = account_id
+        self.event_type = event_type
+        self.purchases = 0
+        self.frauds = 0
+
+    def add_purchase(self):
+        """
+        this function keeps track of how many purchases are made overall on the given account
+        :return: amount of purchases
+        """
+        self.purchases += 1
+        return self.purchases
+
+    def add_fraud(self):
+        """
+        this function keeps track of how many fraud reports are made overall on a given account
+        :return: amount of fraud reports
+        """
+        self.frauds += 1
+        return self.frauds
+
+    def check_event(self, account_id, account_purchases, account_frauds):
+        """
+        The main function of this method is to check if an account with at least 1 purchase,
+        has any fraud reports alongside it.
+        :param account_id: to verify who's account were looking for
+        :param account_purchases: holds all accounts and the amount of purchases they have made
+        :param account_frauds:  holds all accounts and the amount of fraud reports they have made
+        :return: a boolean to help decide if fraud is apparent or not.
+        """
+        for id in account_purchases:
+            if id == account_id:
+                purchases = account_purchases[id]
+        if purchases >= 1:
+            for ids in account_frauds:
+                if ids != account_id:
+                    return False
+                elif ids == account_id:
+                    return True
+
+    def check_fraud(self, account_id, account_frauds):
+        """
+        In certaion bank history scenarios, a check is needed to see if fraud has been reported
+        before the given purchase, or if this is the first purchase on the account.
+        :param account_id: used to verify which account we are checking
+        :param account_frauds: used to check if any fraud reports exist with the given account
+        :return: none
+        """
+        if account_id in account_frauds:
+            if (account_frauds[account_id]) != 0:
+                for id in account_frauds:
+                    if id == account_id:
+                        if (account_frauds[id]) > 0:
+                            self.fraud_history(self.date, account_frauds, account_id)
+        else:
+            self.no_history(self.date, account_id)
+
+    def check_dates(self, account_id, date, all_dates, account_purchases):
+        """
+        This function is used to determine if the method unconfirmed_history or good_history should be called,
+        this is based on the amount of purchases they have made and the dates of given purchases
+        :param account_id: used to verify which account we are looking at
+        :param date: the given date that we must compare to previous transactions
+        :param all_dates: used to compare to current date, most likely a purchase date
+        :param account_purchases: the amount of purchases made in the given account
+        :return: none
+        """
+        temp_purchases = 0
+        for id in all_dates:
+            if id == account_id:
+                for dates in all_dates[id]:
+                    if dates == date:
+                        current = dates
+                        count = 0
+                        while count < len(all_dates[id])-1:
+                            compare = all_dates[id][count]
+                            currentdate = datetime.strptime(current, "%Y-%m-%d").date()
+                            comparedate = datetime.strptime(compare, "%Y-%m-%d").date()
+                            check = (currentdate-comparedate).days
+                            if check > 90:
+                                temp_purchases += 1
+                            count += 1
+                if temp_purchases != 0:
+                    self.good_history(date, account_id, temp_purchases)
+                else:
+                    self.unconfirmed_history(date, account_id, account_purchases)
+
+    def no_history(self, date, account_id):
+        """
+        this function prints out the needed statement for an account with no transaction history
+        """
+        print(date + "," + account_id + ",NO_HISTORY")
+
+    def unconfirmed_history(self, date, account_id, account_purchases):
+        """
+        this function prints out the needed statement for an account with no fraud reports,
+        yet no purchases over 90 days old.
+        """
+        print(date + "," + account_id + ",UNCONFIRMED_HISTORY: " + str(account_purchases[account_id]))
+
+    def good_history(self, date, account_id, temp_purchases):
+        """
+        this function prints out the needed statement for an account with no fraud reports,
+        yet at least one purchase that is older than 90 days.
+        """
+        print(date + "," + account_id + ",GOOD_HISTORY: " + str(temp_purchases))
+
+    def fraud_history(self, date, account_frauds, account_id):
+        """
+        this function prints out the needed statement for an account with fraud reports, regardless of purchases
+        """
+        print(date + "," + account_id + ",FRAUD_HISTORY: " + str(account_frauds[account_id]))
+
+def main():
+    while True:
+        file = input("Enter the account history file: \n")
+        try:
+            files = open(file)
+        except FileNotFoundError:
+            print("File does not exist or file path is incorrect. Try again\n")
+        else:
+            break
+
+    count = 0
+    account_purchases = {}
+    account_frauds = {}
+    all_dates = {}
+
+    for line in files:
+        count += 1
+        line = line.strip().split(",")
+        accounts = account(line[0], line[1], line[2])
+
+        if line[2] == "PURCHASE":
+            if line[1] not in all_dates:
+                all_dates[line[1]] = [line[0]]
+            elif line[1] in all_dates:
+                all_dates[line[1]] += [line[0]]
+
+            if line[1] not in account_purchases:
+                accounts.check_fraud(line[1], account_frauds)
+                account_purchases[line[1]] = 0
+            elif line[1] in account_purchases:
+                account_purchases[line[1]] += accounts.add_purchase()
+                situation = accounts.check_event(line[1], account_purchases, account_frauds)
+                if situation == False:
+                    accounts.check_dates(line[1], line[0], all_dates, account_purchases)
+                else:
+                    accounts.fraud_history(line[0], account_frauds, line[1])
+
+        elif line[2] == "FRAUD_REPORT":     #Used to update amount of fraud reports
+            if line[1] not in account_frauds:
+                account_frauds[line[1]] = 1
+            elif line[1] in account_frauds:
+                account_frauds[line[1]] += 1
+
+if __name__ == "__main__":
+    main()
